@@ -49,8 +49,8 @@ def generate(
 
 
 def main(
-    prompt: str = "What is the biggest planet in owr solar system?",
-    answers: str = "Mars|Jupiter|Sun|Neptun|Earth|They are all the same size|The biggest planet is Jupiter",
+    question: str = "What is the biggest planet in owr solar system?",
+    answers: str = "Mars|Jupiter|Sun|Earth|All the planets have same size|The biggest planet is Jupiter",
     *,
     temperature: float = 0.8,
     checkpoint_path: Path = Path("checkpoints/lit-llama/7B/lit-llama.pth"),
@@ -60,7 +60,8 @@ def main(
     """Generates text samples based on a pre-trained LLaMA model and tokenizer.
 
     Args:
-        prompt: The prompt string to use for generating the samples.
+        question: the question string
+        answers: answers separated by "|" symbol
         temperature: A value controlling the randomness of the sampling process. Higher values result in more random
             samples.
         checkpoint_path: The checkpoint path to load.
@@ -92,7 +93,8 @@ def main(
     model = fabric.setup_module(model)
 
     tokenizer = Tokenizer(tokenizer_path)
-    encoded = tokenizer.encode(prompt, bos=True, eos=False, device=fabric.device)
+    question = question + " Given this question, the most probable answer is: "
+    encoded = tokenizer.encode(question, bos=True, eos=False, device=fabric.device)
     answers_idx = [tokenizer.encode(a, bos=False, eos=False, device=fabric.device) for a in answers.split('|')]
     L.seed_everything(1234)
 
@@ -100,6 +102,7 @@ def main(
     probs = generate(model, encoded, answers_idx, temperature=temperature)
     probs = [p*1/sum(probs) for p in probs]
     answers = sorted(zip(answers.split('|'), probs), key=lambda x: x[1], reverse=True)
+    print(question)
     print(answers)
 
     model.reset_cache()
