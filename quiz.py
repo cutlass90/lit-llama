@@ -43,7 +43,7 @@ def generate(
             logits = logits[0, -1] / temperature
 
             probs = torch.nn.functional.softmax(logits, dim=-1)
-            logits_list.append(probs)
+            logits_list.append(logits)
             prob_list.append(probs[answer[i]])
         res.append((sum(prob_list)/len(prob_list)).item())
         ppx = torch.exp(torch.nn.functional.cross_entropy(torch.stack(logits_list), answer.long())).item()
