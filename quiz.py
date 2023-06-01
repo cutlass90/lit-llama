@@ -22,8 +22,7 @@ def generate(
     idx: torch.Tensor,
     answers: List[torch.Tensor],
     *,
-    temperature: float = 1.0,
-) -> list:
+    temperature: float = 1.0):
     """Takes a question and few answers variants as input and return probability for each answer.
 
     Args:
@@ -33,7 +32,9 @@ def generate(
         temperature: Scales the predicted logits by 1 / temperature
     """
     res = []
+    ppx_list = []
     for answer in answers:
+        logits_list = []
         prob_list = []
         for i in range(len(answer)):
             x = torch.cat([idx, answer[:i]]).view(1, -1)
@@ -42,10 +43,13 @@ def generate(
             logits = logits[0, -1] / temperature
 
             probs = torch.nn.functional.softmax(logits, dim=-1)
+            logits_list.append(probs)
             prob_list.append(probs[answer[i]])
         res.append((sum(prob_list)/len(prob_list)).item())
+        ppx = torch.exp(torch.nn.functional.cross_entropy(torch.stack(logits_list), answer.long())).item()
+        ppx_list.append(ppx)
 
-    return res
+    return res, ppx_list
 
 
 def main(
@@ -99,11 +103,13 @@ def main(
     L.seed_everything(1234)
 
 
-    probs = generate(model, encoded, answers_idx, temperature=temperature)
+    probs, ppx = generate(model, encoded, answers_idx, temperature=temperature)
     probs = [p*1/sum(probs) for p in probs]
-    answers = sorted(zip(answers.split('|'), probs), key=lambda x: x[1], reverse=True)
+    answers = sorted(zip(answers.split('|'), probs, ppx), key=lambda x: x[1], reverse=True)
     print(question)
-    print(answers)
+    for answer in answers:
+        print(f'{answer[0]}, probapility={round(answer[1], 2)}, perplexity={round(answer[2])}')
+
 
     model.reset_cache()
 
