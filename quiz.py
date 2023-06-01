@@ -21,37 +21,22 @@ def generate(
     model: LLaMA,
     idx: torch.Tensor,
     answers: List[torch.Tensor],
-    max_new_tokens: int,
     *,
-    max_seq_length: Optional[int] = None,
     temperature: float = 1.0,
-    top_k: Optional[int] = None,
-    eos_id: Optional[int] = None,
 ) -> list:
-    """Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
-
-    The implementation of this function is modified from A. Karpathy's nanoGPT.
+    """Takes a question and few answers variants as input and return probability for each answer.
 
     Args:
         model: The model to use.
         idx: Tensor of shape (T) with indices of the prompt sequence.
-        max_new_tokens: The number of new tokens to generate.
-        max_seq_length: The maximum sequence length allowed.
+        answers: list of Tensors with indices of the answer sequences
         temperature: Scales the predicted logits by 1 / temperature
-        top_k: If specified, only sample among the tokens with the k highest probabilities
-        eos_id: If specified, stop generating any more token once the <eos> token is triggered
     """
     res = []
     for answer in answers:
-        # max_seq_length = idx.size(0) + len(answer)
-        # device, dtype = idx.device, idx.dtype
-
-        # generate max_new_tokens tokens
         prob_list = []
         for i in range(len(answer)):
-            # input_pos = torch.arange(0, len(idx)+i, device=device)
             x = torch.cat([idx, answer[:i]]).view(1, -1)
-
             # forward
             logits = model(x)
             logits = logits[0, -1] / temperature
@@ -64,11 +49,9 @@ def generate(
 
 
 def main(
-    prompt: str = "Hello, my name is",
-    answers: str = "variant1|variant2|variant3",
+    prompt: str = "What is the biggest planet in owr solar system?",
+    answers: str = "Mars|Jupiter|Sun|Neptun|Earth|They are all the same size|The biggest planet is Jupiter",
     *,
-    max_new_tokens: int = 50,
-    top_k: int = 200,
     temperature: float = 0.8,
     checkpoint_path: Path = Path("checkpoints/lit-llama/7B/lit-llama.pth"),
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
@@ -78,9 +61,6 @@ def main(
 
     Args:
         prompt: The prompt string to use for generating the samples.
-
-        max_new_tokens: The number of generation steps to take.
-        top_k: The number of top most probable tokens to consider in the sampling process.
         temperature: A value controlling the randomness of the sampling process. Higher values result in more random
             samples.
         checkpoint_path: The checkpoint path to load.
@@ -117,7 +97,7 @@ def main(
     L.seed_everything(1234)
 
 
-    probs = generate(model, encoded, answers_idx, max_new_tokens, temperature=temperature, top_k=top_k)
+    probs = generate(model, encoded, answers_idx, temperature=temperature)
     probs = [p*1/sum(probs) for p in probs]
     answers = sorted(zip(answers.split('|'), probs), key=lambda x: x[1], reverse=True)
     print(answers)
