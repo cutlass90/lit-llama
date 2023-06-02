@@ -23,7 +23,7 @@ def generate(
     answers: List[torch.Tensor],
     *,
     temperature: float = 1.0):
-    """Takes a question and few answers variants as input and return probability for each answer.
+    """Takes a question and few answers variants as input and return perplexity for each answer.
 
     Args:
         model: The model to use.
@@ -31,7 +31,6 @@ def generate(
         answers: list of Tensors with indices of the answer sequences
         temperature: Scales the predicted logits by 1 / temperature
     """
-    res = []
     ppx_list = []
     for answer in answers:
         logits_list = []
@@ -41,20 +40,16 @@ def generate(
             # forward
             logits = model(x)
             logits = logits[0, -1] / temperature
-
-            probs = torch.nn.functional.softmax(logits, dim=-1)
             logits_list.append(logits)
-            prob_list.append(probs[answer[i]])
-        res.append((sum(prob_list)/len(prob_list)).item())
         ppx = torch.exp(torch.nn.functional.cross_entropy(torch.stack(logits_list), answer.long())).item()
         ppx_list.append(ppx)
 
-    return res, ppx_list
+    return ppx_list
 
 
 def main(
     question: str = "What is the biggest planet in owr solar system?",
-    answers: str = "Mars|Jupiter|Sun|Earth|All the planets have same size|The biggest planet is Jupiter",
+    answers: str = "Neptune|Mars|Jupiter|Sun|Earth|All the planets have same size|The biggest planet is Jupiter",
     *,
     temperature: float = 0.8,
     checkpoint_path: Path = Path("checkpoints/lit-llama/7B/lit-llama.pth"),
@@ -102,13 +97,11 @@ def main(
     answers_idx = [tokenizer.encode(a, bos=False, eos=False, device=fabric.device) for a in answers.split('|')]
     L.seed_everything(1234)
 
-
-    probs, ppx = generate(model, encoded, answers_idx, temperature=temperature)
-    probs = [p*1/sum(probs) for p in probs]
-    answers = sorted(zip(answers.split('|'), probs, ppx), key=lambda x: x[1], reverse=True)
+    ppx = generate(model, encoded, answers_idx, temperature=temperature)
+    answers = sorted(zip(answers.split('|'), ppx), key=lambda x: x[1])
     print(question)
     for answer in answers:
-        print(f'{answer[0]}, probapility={round(answer[1], 2)}, perplexity={round(answer[2])}')
+        print(f'{answer[0]}, perplexity={round(answer[1])}')
 
 
     model.reset_cache()
